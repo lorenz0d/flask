@@ -1,0 +1,48 @@
+import os
+import instapy
+
+from flask import Flask, request, redirect, url_for
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Set up Instapy client
+instagram_username = os.environ.get('INSTAGRAM_USERNAME')
+instagram_password = os.environ.get('INSTAGRAM_PASSWORD')
+client = instapy.InstaPy(username=instagram_username, password=instagram_password)
+
+# Helper function to check if a file is allowed
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Route for uploading photos
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return redirect(request.url)
+    file = request.files['file']
+    if file.filename == '':
+        return redirect(request.url)
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return redirect(url_for('uploaded_file', filename=filename))
+
+# Route for displaying uploaded photo
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    # Get photo location from file metadata
+    photo_location = get_photo_location(filename)
+
+    # Upload photo to Instagram with location and user-defined hashtags
+    client.upload_photo(filename, photo_location, hashtags=['travel', 'adventure'])
+
+    return 'Successfully uploaded {} to Instagram!'.format(filename)
+
+if __name__ == '__main__':
+    app.run()
